@@ -1,0 +1,34 @@
+"""Serializers for Message models."""
+
+from rest_framework import serializers
+from messaging.models import Message
+from users.serializers import UserProfileSerializer
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    """Serializer for Message model."""
+    
+    sender_profile = serializers.SerializerMethodField()
+    receiver_profile = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Message
+        fields = [
+            'id', 'sender', 'receiver', 'sender_profile', 'receiver_profile',
+            'text', 'message_type', 'is_read', 'timestamp'
+        ]
+        read_only_fields = ['id', 'sender', 'timestamp']
+    
+    def get_sender_profile(self, obj):
+        return UserProfileSerializer(obj.sender).data
+    
+    def get_receiver_profile(self, obj):
+        return UserProfileSerializer(obj.receiver).data
+
+
+class MessageCreateSerializer(serializers.Serializer):
+    """Serializer for creating a message."""
+    
+    receiver_id = serializers.CharField(max_length=36)
+    text = serializers.CharField(max_length=5000)
+    message_type = serializers.ChoiceField(choices=['text', 'image', 'location'], default='text')
