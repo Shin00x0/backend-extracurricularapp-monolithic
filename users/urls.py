@@ -1,7 +1,7 @@
 """URLs for users app."""
 
 from django.urls import path
-import views
+import users.views as views
 app_name = 'users'
 
 urlpatterns = [
@@ -21,4 +21,7 @@ urlpatterns = [
     
     # Device token endpoints
     path('device-token/register/', views.DeviceTokenRegisterView.as_view(), name='device-token-register'),
+
+    # Firebase sync webhook/manual endpoint
+    path('sync-firebase/', views.FirebaseSyncView.as_view(), name='sync-firebase'),
 ]

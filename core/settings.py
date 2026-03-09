@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-@y25*wm&bjbec_w&p4ei&rf9j$ys3=&!!f7i%y$^##(2!v(298
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -39,9 +39,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
     'rest_framework',
     'corsheaders',
     'channels',
+
+
     # Domain apps
     'users',
     'clients',
@@ -56,10 +59,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Firebase token middleware: verifies Bearer tokens and attaches `request.user`
+    #'core.middleware.firebase_middleware.FirebaseAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -130,7 +136,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Use WhiteNoise storage so Django can serve compressed static files
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -141,10 +150,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'core.utils.firebase.FirebaseAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 20,
 }
+
+# Authentication backends: allow local admin auth and default ModelBackend
+AUTHENTICATION_BACKENDS = [
+    'users.auth_backends.LocalAuthBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 # CORS (dev defaults)
 CORS_ALLOW_ALL_ORIGINS = True
@@ -162,11 +178,12 @@ X_API_VERSION = 'v1'
 # Django Channels Configuration
 ASGI_APPLICATION = 'core.asgi.application'
 
+# add ip config layer 172.26.208.1
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [('172.26.208.1', 6379)],
         },
     },
 }

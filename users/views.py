@@ -11,7 +11,6 @@ from .serializers import (
     UserProfileSerializer, DeviceTokenSerializer, DeviceTokenCreateSerializer
 )
 
-
 class AuthVerifyView(APIView):
     """Verify Firebase token and return user data."""
     permission_classes = [IsAuthenticated]
@@ -116,3 +115,79 @@ class DeviceTokenRegisterView(APIView):
             'success': True,
             'data': DeviceTokenSerializer(device_token).data
         }, status=status.HTTP_201_CREATED)
+
+
+class FirebaseSyncView(APIView):
+    """Webhook/manual endpoint to sync user profile from Firebase.
+
+    Security: Accepts either a valid Firebase ID token in Authorization header
+    or a shared secret in header `X-FIREBASE-SYNC-SECRET` set in settings.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.conf import settings
+        firebase_service = get_firebase_service()
+
+        # Authentication: either Firebase ID token or shared secret header
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '').split()
+        secret_header = request.META.get('HTTP_X_FIREBASE_SYNC_SECRET')
+
+        uid = None
+        if auth_header and len(auth_header) == 2 and auth_header[0] == 'Bearer':
+            token = auth_header[1]
+            decoded = firebase_service.verify_token(token)
+            if not decoded:
+                return Response({'success': False, 'error': 'Invalid Firebase token'}, status=status.HTTP_401_UNAUTHORIZED)
+            uid = decoded.get('uid')
+        elif not secret_header or secret_header != getattr(settings, 'FIREBASE_SYNC_SECRET', None):
+            return Response({'success': False, 'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        data = request.data
+        if not uid:
+            uid = data.get('uid')
+        if not uid:
+            return Response({'success': False, 'error': 'uid is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        action = data.get('action', 'update')
+
+        try:
+            user = BaseUser.objects.get(firebase_uid=uid)
+        except BaseUser.DoesNotExist:
+            user = None
+
+        if action == 'delete':
+            if user:
+                user.is_active = False
+                user.synced_at = timezone.now()
+                user.save()
+                return Response({'success': True, 'status': 'deleted'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'success': False, 'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Update/create from Firebase record
+        fb_user = firebase_service.get_user(uid)
+        if not fb_user:
+            return Response({'success': False, 'error': 'Firebase user not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user is None:
+            user = BaseUser.objects.create(
+                firebase_uid=uid,
+                email=fb_user.get('email') or '',
+                name=fb_user.get('display_name') or '',
+                firebase_profile=fb_user,
+                auth_provider='firebase',
+                is_active=True,
+                synced_at=timezone.now()
+            )
+        else:
+            user.email = fb_user.get('email') or user.email
+            user.name = fb_user.get('display_name') or user.name
+            user.firebase_profile = fb_user
+            user.auth_provider = 'firebase'
+            user.is_active = True
+            user.synced_at = timezone.now()
+            user.save()
+
+        serializer = BaseUserSerializer(user)
+        return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)

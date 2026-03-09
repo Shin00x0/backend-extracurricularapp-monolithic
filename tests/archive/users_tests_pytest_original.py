@@ -1,0 +1,2 @@
+# Backup of previous users/tests_pytest.py (which was empty/commented to avoid duplicates)
+# Original content: "Tests moved to top-level tests/ directory. Keep this file empty to avoid duplicate test discovery."

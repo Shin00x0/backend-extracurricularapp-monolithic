@@ -1,3 +1,1 @@
-from django.test import TestCase
-
-# Create your tests here.
+# DELETED: Tests consolidated into top-level `tests/` directory.
